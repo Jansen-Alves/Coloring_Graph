@@ -1,10 +1,9 @@
 import networkx as nx
 import matplotlib.pyplot as plt
 import algorithmx
-import pandas as pd
 
-def grafoImport():
-    G = nx.gnp_random_graph(15, 0.3, 135)
+def grafoImport(n):
+    G = nx.gnp_random_graph(n, 0.3, 135)
     # total de vertices e arestas
     n_vertices = G.number_of_nodes()
     n_arestas = G.number_of_edges()
@@ -23,7 +22,7 @@ def grafoImport():
     nx.draw_circular(G, with_labels=True)
     nx.write_edgelist(
         G,
-        "grafoBase.csv",
+        "grafoBase2.csv",
         delimiter = ",",
         data = False,
         encoding ='utf-8'
