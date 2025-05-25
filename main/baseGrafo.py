@@ -27,6 +27,7 @@ def grafoImport(n):
         data = False,
         encoding ='utf-8'
     )
+
 def heuristicaGulosa(G):
     vertices = G.number_of_nodes()
     colorizacao = {node: -1 for node in G.nodes()}
@@ -46,5 +47,5 @@ def heuristicaGulosa(G):
             if colorizacao[viz] != -1:
                 disponiveis[colorizacao[viz]] = False
     
-    
+    n_cores = max(colorizacao.values())
     return colorizacao, n_cores
