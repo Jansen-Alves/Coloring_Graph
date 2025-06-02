@@ -22,7 +22,7 @@ def grafoImport(n):
     nx.draw_circular(G, with_labels=True)
     nx.write_edgelist(
         G,
-        "grafoBase2.csv",
+        "grafoBase.csv",
         delimiter = ",",
         data = False,
         encoding ='utf-8'
@@ -32,16 +32,19 @@ def heuristicaGulosa(G):
     vertices = G.number_of_nodes()
     colorizacao = {node: -1 for node in G.nodes()}
     colorizacao[0]=0
-    disponiveis = {node: False for node in G.nodes()}
+    disponiveis = [False] * vertices
+    print(disponiveis)
     lista_vizinhos = {n: {viz: -1 for viz in G.neighbors(n)} for n in G.nodes()}
-
+    print(vertices)
     for node in range(1, vertices):
         for viz in lista_vizinhos[node]:
             if colorizacao[viz] != -1:
                 disponiveis[colorizacao[viz]] = True
+
         for color in range(vertices):
             if not disponiveis[color]:
                 break
+
         colorizacao[node] = color
         for viz in lista_vizinhos[node]:
             if colorizacao[viz] != -1:
