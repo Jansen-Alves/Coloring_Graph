@@ -33,7 +33,6 @@ def heuristicaGulosa(G):
     colorizacao = {node: -1 for node in G.nodes()}
     colorizacao[0]=0
     disponiveis = [False] * vertices
-    print(disponiveis)
     lista_vizinhos = {n: {viz: -1 for viz in G.neighbors(n)} for n in G.nodes()}
     print(vertices)
     for node in range(1, vertices):
