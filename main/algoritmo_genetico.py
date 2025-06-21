@@ -4,23 +4,25 @@ import statistics
 import networkx as nx
 from baseGrafo import heuristicaGulosa
 from utils import ler_grafo_dimacs, ler_solucoes_otimas, salvar_resultados
+import time
+import matplotlib.pyplot as plt
+from concurrent.futures import ProcessPoolExecutor, as_completed
 
 # --------------------------- Parâmetros do AG --------------------------- #
-TAMANHO_POPULACAO = 50
-MAX_GERACOES = 200
-TAXA_MUTACAO = 0.1
-TAXA_CROSSOVER = 0.8
-ELITISMO = 5  # número de melhores soluções mantidas
-PORCENTAGEM_HEURISTICA = 0.1  # % da população inicial vindo da heurística gulosa
+TAMANHO_POPULACAO = 30     
+MAX_GERACOES = 60           
+TAXA_MUTACAO = 0.15         
+TAXA_CROSSOVER = 0.85
+ELITISMO = 2                
+PORCENTAGEM_HEURISTICA = 0.2  
 
 # --------------------------- Funções do AG --------------------------- #
 
 def inicializar_populacao(G):
     populacao = []
     n_heuristica = int(PORCENTAGEM_HEURISTICA * TAMANHO_POPULACAO)
-    cor_heuristica, _ = heuristicaGulosa(G)
-
     for _ in range(n_heuristica):
+        cor_heuristica, _ = heuristicaGulosa(G, True)
         populacao.append(dict(cor_heuristica))
 
     for _ in range(TAMANHO_POPULACAO - n_heuristica):
@@ -28,11 +30,6 @@ def inicializar_populacao(G):
         for node in G.nodes():
             individuo[node] = random.randint(0, len(G))
         populacao.append(individuo)
-
-    print("\n[População Inicial] Amostra de 3 indivíduos (10 genes):")
-    for ind in populacao[:3]:
-        print(dict(list(ind.items())[:10]))
-
     return populacao
 
 def avaliar(G, individuo):
@@ -73,102 +70,153 @@ def mutacao(G, individuo):
                 individuo[no_mutar] = nova_cor
     return individuo
 
-def algoritmo_genetico(G):
+def algoritmo_genetico(G, otima=None, mostrar_grafico=False, max_sem_melhora=25):
     populacao = inicializar_populacao(G)
     melhor_solucao = None
     melhor_fitness = float('inf')
+    fitness_geracoes = []
+    sem_melhora = 0
 
     for geracao in range(MAX_GERACOES):
         populacao.sort(key=lambda ind: fitness_valor(G, ind))
         nova_populacao = populacao[:ELITISMO]
 
-        pais = [selecao_roleta(G, populacao) for _ in range((TAMANHO_POPULACAO - ELITISMO) * 2)]
-        print("\n[Seleção] Fitness dos 3 primeiros pais:", [avaliar(G, p) for p in pais[:3]])
-
         while len(nova_populacao) < TAMANHO_POPULACAO:
             pai1 = selecao_roleta(G, populacao)
             pai2 = selecao_roleta(G, populacao)
-
             if random.random() < TAXA_CROSSOVER:
                 filho = crossover(G, pai1, pai2)
             else:
                 filho = dict(pai1)
-
             nova_populacao.append(filho)
 
-        print("\n[Crossover] Primeiros 3 filhos (10 genes):")
-        for filho in nova_populacao[ELITISMO:ELITISMO+3]:
-            print(dict(list(filho.items())[:10]))
-
-        print("\n[Mutação] Verificando mudanças nos 3 primeiros filhos após mutação:")
-        for i in range(ELITISMO, ELITISMO + 3):
-            original = nova_populacao[i].copy()
-            mutado = mutacao(G, nova_populacao[i])
-            mudou = original != mutado
-            print(f"Filho {i-ELITISMO+1}: {'MUDOU' if mudou else 'NÃO MUDOU'}")
+        for i in range(ELITISMO, len(nova_populacao)):
+            mutacao(G, nova_populacao[i])
 
         populacao = nova_populacao
         populacao.sort(key=lambda ind: fitness_valor(G, ind))
 
-        if fitness_valor(G, populacao[0]) < melhor_fitness:
-            melhor_solucao = populacao[0]
-            melhor_fitness = fitness_valor(G, melhor_solucao)
+        atual_fitness = fitness_valor(G, populacao[0])
+        fitness_geracoes.append(atual_fitness)
 
-        if avaliar(G, populacao[0]) < 1000:
+        conflitos = sum(1 for u, v in G.edges() if populacao[0][u] == populacao[0][v])
+        num_cores = len(set(populacao[0].values()))
+
+        # Print de progresso (opcional)
+        print(f"Geração {geracao+1}: Fitness={atual_fitness}, Conflitos={conflitos}, Cores={num_cores}")
+
+        # Critério de parada por melhora
+        if atual_fitness < melhor_fitness:
+            melhor_solucao = populacao[0]
+            melhor_fitness = atual_fitness
+            sem_melhora = 0
+        else:
+            sem_melhora += 1
+
+        # Critério de parada por solução ótima
+        if otima is not None and conflitos == 0 and num_cores == otima:
+            print(f"Solução ótima ({otima}) encontrada na geração {geracao+1}.")
+            break
+
+        # Critério de parada por estagnação
+        if sem_melhora >= max_sem_melhora:
+            print(f"Parando por estagnação após {max_sem_melhora} gerações sem melhora.")
             break
 
     conflitos_finais = sum(1 for u, v in G.edges() if melhor_solucao[u] == melhor_solucao[v])
     num_cores = len(set(melhor_solucao.values()))
 
-    print("\n[Execução Final] Cores usadas por 10 indivíduos:", [len(set(ind.values())) for ind in populacao[:10]])
+    if mostrar_grafico:
+        plt.figure(figsize=(8, 4))
+        plt.plot(fitness_geracoes, marker='o')
+        plt.title('Progresso do Fitness ao longo das gerações')
+        plt.xlabel('Geração')
+        plt.ylabel('Fitness (conflitos*10 + cores)')
+        plt.grid(True)
+        plt.tight_layout()
+        plt.show()
 
-    return melhor_solucao, (conflitos_finais, num_cores)
+        # Visualização do grafo colorido
+        cores = [melhor_solucao[n] for n in G.nodes()]
+        plt.figure(figsize=(8, 8))
+        nx.draw_spring(G, node_color=cores, with_labels=True, cmap=plt.cm.tab20)
+        plt.title(f'Coloração final do grafo ({num_cores} cores)')
+        plt.show()
+
+    return melhor_solucao, (conflitos_finais, num_cores), fitness_geracoes
+
+def executar_algoritmo(nome_grafo, arquivo, solucoes_otimas, resultados_dir, mostrar_grafico=False):
+    G = ler_grafo_dimacs(arquivo)
+    avaliacoes = []
+    tempos = []
+    fitness_hist = []
+    otima = solucoes_otimas.get(nome_grafo, None)
+    for i in range(3):
+        print(f"\n===== {nome_grafo} | Execução {i+1} =====")
+        start = time.time()
+        _, (conflitos, cores), fitness_geracoes = algoritmo_genetico(G, mostrar_grafico=(mostrar_grafico and i==0))
+        end = time.time()
+        tempo = end - start
+        print(f"Conflitos: {conflitos} | Cores: {cores} | Tempo: {tempo:.2f}s")
+        avaliacoes.append((conflitos, cores))
+        tempos.append(tempo)
+        fitness_hist.append(fitness_geracoes)
+        # Critério de parada: encontrou solução ótima conhecida
+        if otima is not None and conflitos == 0 and cores == otima:
+            print(f"Solução ótima conhecida ({otima}) encontrada na execução {i+1}. Encerrando execuções.")
+            break
+    conflitos_m = [c for c, _ in avaliacoes]
+    cores_m = [k for _, k in avaliacoes]
+    media_conflitos = sum(conflitos_m) / len(conflitos_m)
+    media_cores = sum(cores_m) / len(cores_m)
+    dp_cores = statistics.stdev(cores_m) if len(cores_m) > 1 else 0
+    melhor_encontrado = min(cores_m)
+    salvar_resultados(
+        nome_grafo,
+        avaliacoes,
+        media_conflitos,
+        media_cores,
+        dp_cores,
+        melhor_encontrado,
+        otima,
+        resultados_dir
+    )
+    print(f"[✓] {nome_grafo}: Melhor={melhor_encontrado}, Ótima={otima}, DP={dp_cores:.2f}, Tempo médio={statistics.mean(tempos):.2f}s")
+    # Visualização do progresso médio das execuções
+    if mostrar_grafico:
+        plt.figure(figsize=(8, 4))
+        for i, hist in enumerate(fitness_hist):
+            plt.plot(hist, label=f'Execução {i+1}')
+        plt.title(f'Fitness ao longo das gerações - {nome_grafo}')
+        plt.xlabel('Geração')
+        plt.ylabel('Fitness')
+        plt.legend()
+        plt.grid(True)
+        plt.tight_layout()
+        plt.show()
 
 # ------------------------ Execução principal ------------------------ #
 def main():
     pasta_grafos = "grafos"
     resultados_dir = "resultados"
     os.makedirs(resultados_dir, exist_ok=True)
-
     solucoes_otimas = ler_solucoes_otimas("solucoes_otimas.csv")
 
-    for arquivo in os.listdir(pasta_grafos):
-        if arquivo.endswith(".col"):
-            nome_grafo = arquivo[:-4]
-            G = ler_grafo_dimacs(os.path.join(pasta_grafos, arquivo))
+    # Nome do grafo sem extensão (.col)
+    grafo = "le450_25c"
 
-            avaliacoes = []
-            for i in range(3):
-                print("\n" + "="*40)
-                print(f"===== Execução {i+1} =====")
-                grau_max = max(dict(G.degree()).values())
-                num_cores = random.randint(3, grau_max)
-                print(f"Seed randômica: {random.random():.5f}")
-                print(f"Número inicial de cores (estimado): {num_cores}")
+    arquivo = os.path.join(pasta_grafos, grafo + ".col")
+    if not os.path.exists(arquivo):
+        print(f"Grafo {grafo}.col não encontrado na pasta {pasta_grafos}.")
+        return
 
-                _, (conflitos, cores) = algoritmo_genetico(G)
-                avaliacoes.append((conflitos, cores))
-
-            conflitos_m = [c for c, _ in avaliacoes]
-            cores_m = [k for _, k in avaliacoes]
-            media_conflitos = sum(conflitos_m) / len(conflitos_m)
-            media_cores = sum(cores_m) / len(cores_m)
-            dp_cores = statistics.stdev(cores_m) if len(cores_m) > 1 else 0
-
-            melhor_encontrado = min(cores_m)
-            otima = solucoes_otimas.get(nome_grafo, "Desconhecida")
-
-            salvar_resultados(
-                nome_grafo,
-                avaliacoes,
-                media_conflitos,
-                media_cores,
-                dp_cores,
-                melhor_encontrado,
-                otima,
-                resultados_dir
-            )
-            print(f"[✓] {nome_grafo}: Melhor={melhor_encontrado}, Ótima={otima}, DP={dp_cores:.2f}")
+    executar_algoritmo(
+        grafo,
+        arquivo,
+        solucoes_otimas,
+        resultados_dir,
+        mostrar_grafico=False  # Coloque True para ver os gráficos
+    )
 
 if __name__ == "__main__":
     main()
