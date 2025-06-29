@@ -1,6 +1,7 @@
 import networkx as nx
 import matplotlib.pyplot as plt
 import algorithmx
+import random
 
 def grafoImport(n):
     G = nx.gnp_random_graph(n, 0.3, 135)
@@ -28,14 +29,21 @@ def grafoImport(n):
         encoding ='utf-8'
     )
 
-def heuristicaGulosa(G):
+def heuristicaGulosa(G, aleatorio=False):
     vertices = G.number_of_nodes()
-    colorizacao = {node: -1 for node in G.nodes()}
-    colorizacao[0]=0
+    nodes = list(G.nodes())
+    if aleatorio:
+        random.shuffle(nodes)
+    else:
+        # Garante que o primeiro vértice seja o mesmo de sempre (0)
+        nodes.sort()
+    colorizacao = {node: -1 for node in nodes}
+    colorizacao[nodes[0]] = 0
     disponiveis = [False] * vertices
-    lista_vizinhos = {n: {viz: -1 for viz in G.neighbors(n)} for n in G.nodes()}
-    print(vertices)
-    for node in range(1, vertices):
+    lista_vizinhos = {n: {viz: -1 for viz in G.neighbors(n)} for n in nodes}
+    #print(vertices)
+    for idx in range(1, vertices):
+        node = nodes[idx]
         for viz in lista_vizinhos[node]:
             if colorizacao[viz] != -1:
                 disponiveis[colorizacao[viz]] = True
@@ -48,6 +56,6 @@ def heuristicaGulosa(G):
         for viz in lista_vizinhos[node]:
             if colorizacao[viz] != -1:
                 disponiveis[colorizacao[viz]] = False
-    
+
     n_cores = max(colorizacao.values())
     return colorizacao, n_cores

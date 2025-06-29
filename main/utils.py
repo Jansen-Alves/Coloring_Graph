@@ -32,15 +32,16 @@ def ler_solucoes_otimas(caminho_csv):
     return solucoes
 
 
-def salvar_resultados(nome_grafo, execucoes, cores_usadas, melhor, media, desvio, otima = None, pasta='resultados'):
+def salvar_resultados(nome_grafo, execucoes, cores_usadas, melhor, media, desvio, otima=None, pasta='resultados', tempos=None):
     """
     Salva os resultados de execuções em um CSV.
-    
+
     Parâmetros:
     - nome_grafo: nome do grafo (sem extensão)
-    - execucoes: lista de tuplas (conflitos, cores_usadas)
+    - execucoes: lista de tuplas (conflitos, cores_usadas, tempo) ou (conflitos, cores_usadas)
     - pasta: pasta onde salvar os arquivos
     - otima: solução ótima conhecida (opcional)
+    - tempos: lista de tempos de cada execução (opcional)
     """
     if not os.path.exists(pasta):
         os.makedirs(pasta)
@@ -48,16 +49,33 @@ def salvar_resultados(nome_grafo, execucoes, cores_usadas, melhor, media, desvio
     caminho = os.path.join(pasta, f'{nome_grafo}.csv')
     with open(caminho, mode='w', newline='', encoding='utf-8') as arquivo:
         escritor = csv.writer(arquivo)
-        escritor.writerow(['execucao', 'conflitos', 'cores_usadas'])
+        # Cabeçalho adaptado
+        if tempos is not None and len(execucoes) > 0 and len(execucoes[0]) == 4:
+            escritor.writerow(['execucao', 'conflitos', 'cores_usadas', 'tempo'])
+        else:
+            escritor.writerow(['execucao', 'conflitos', 'cores_usadas'])
 
         cores = []
-        for i, (conflitos, num_cores) in enumerate(execucoes, start=1):
-            escritor.writerow([i, conflitos, num_cores])
-            cores.append(num_cores)
+        for i, execucao in enumerate(execucoes, start=1):
+            if tempos is not None and len(execucao) == 4:
+                conflitos, num_cores, tempo = execucao[1], execucao[2], execucao[3]
+                escritor.writerow([execucao[0], conflitos, num_cores, f"{tempo:.2f}"])
+                cores.append(num_cores)
+            elif tempos is not None and len(execucao) == 3:
+                conflitos, num_cores, tempo = execucao
+                escritor.writerow([i, conflitos, num_cores, f"{tempo:.2f}"])
+                cores.append(num_cores)
+            else:
+                conflitos, num_cores = execucao[:2]
+                escritor.writerow([i, conflitos, num_cores])
+                cores.append(num_cores)
 
-        melhor = min(cores)
-        media = statistics.mean(cores)
-        desvio = statistics.stdev(cores) if len(cores) > 1 else 0.0
+        if cores:
+            melhor = min(cores)
+            media = statistics.mean(cores)
+            desvio = statistics.stdev(cores) if len(cores) > 1 else 0.0
+        else:
+            melhor = media = desvio = 0.0
 
         escritor.writerow([])
         escritor.writerow(['melhor_solucao', melhor])
@@ -65,3 +83,5 @@ def salvar_resultados(nome_grafo, execucoes, cores_usadas, melhor, media, desvio
         escritor.writerow(['desvio_padrao', f"{desvio:.2f}"])
         if otima is not None:
             escritor.writerow(['solucao_otima', otima])
+        if tempos is not None and len(tempos) > 0:
+            escritor.writerow(['tempo_medio', f"{statistics.mean(tempos):.2f}"])

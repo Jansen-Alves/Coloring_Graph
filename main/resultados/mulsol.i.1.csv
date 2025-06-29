@@ -1,0 +1,10 @@
+execucao,conflitos,cores_usadas,tempo
+1,0,49,1.50
+2,0,49,1.45
+3,0,49,1.47
+
+melhor_solucao,49
+media_cores,49.00
+desvio_padrao,0.00
+solucao_otima,49
+tempo_medio,1.47

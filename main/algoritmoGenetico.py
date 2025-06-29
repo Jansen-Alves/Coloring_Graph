@@ -109,7 +109,7 @@ def algoritmo_genetico(G, k_max, otima=None):
     sem_melhora = 0
     taxa_mutacao = TAXA_MUTACAO_BASE
 
-    menor_conflitos = None  # Novo: para controlar o print
+    menor_conflitos = None 
 
     for geracao in range(MAX_GERACOES):
         populacao.sort(key=lambda ind: avaliar(G, ind))
@@ -130,14 +130,14 @@ def algoritmo_genetico(G, k_max, otima=None):
             if random.random() < taxa_mutacao:
                 nova_populacao[i] = mutacao(G, dict(nova_populacao[i]), k_max)
 
-        # Reinjeção de diversidade a cada 5 gerações
+        # Reinjeção de diversidade a cada 20 gerações
         if geracao % 20 == 0 and geracao > 0:
             num_diversos = int(0.2 * TAMANHO_POPULACAO)
             for i in range(TAMANHO_POPULACAO - num_diversos, TAMANHO_POPULACAO):
                 novo = {v: random.randint(0, k_max - 1) for v in G.nodes()}
                 nova_populacao[i] = novo
 
-        # Busca local em x% da população
+        # Busca local em 10% da população
         for i in range(int(0.1 * TAMANHO_POPULACAO)):
             nova_populacao[i] = busca_local_gulosa(G, dict(nova_populacao[i]), k_max)
 
@@ -187,18 +187,21 @@ def salvar_resultados(
     media,
     desvio,
     otima,
-    resultados_dir
+    resultados_dir,
+    tempos
 ):
     arquivo = os.path.join(resultados_dir, f"{grafo_nome}.csv")
     with open(arquivo, "w", encoding="utf-8") as f:
-        f.write("execucao,conflitos,cores_usadas\n")
-        for execucao, conflitos, num_cores in execucoes:
-            f.write(f"{execucao},{conflitos},{num_cores}\n")
+        f.write("execucao,conflitos,cores_usadas,tempo\n")
+        for execucao, conflitos, num_cores, tempo in execucoes:
+            f.write(f"{execucao},{conflitos},{num_cores},{tempo:.2f}\n")
         f.write(f"\nmelhor_solucao,{melhor}\n")
         f.write(f"media_cores,{media:.2f}\n")
         f.write(f"desvio_padrao,{desvio:.2f}\n")
         if otima is not None:
             f.write(f"solucao_otima,{otima}\n")
+        if tempos:
+            f.write(f"tempo_medio,{statistics.mean(tempos):.2f}\n")
 
 def main():
     pasta_grafos = "grafos"
@@ -206,7 +209,7 @@ def main():
     os.makedirs(resultados_dir, exist_ok=True)
     solucoes_otimas = ler_solucoes_otimas("solucoes_otimas.csv")
 
-    grafo_nome = "queen11_11"  # Nome do grafo a ser processado
+    grafo_nome = "dsjr500.1c"  # Nome do grafo a ser processado
     arquivo = os.path.join(pasta_grafos, grafo_nome + ".col")
     otima = solucoes_otimas.get(grafo_nome, None)
     G = ler_grafo_dimacs(arquivo)
@@ -255,24 +258,25 @@ def main():
     avaliacoes_csv = []
     for i, execucao in enumerate(melhores_execucoes):
         if execucao is not None:
-            avaliacoes_csv.append((i+1, execucao[0], execucao[1]))
+            avaliacoes_csv.append((i+1, execucao[0], execucao[1], tempos[i]))
 
     if avaliacoes_csv:
-        melhor = min(k for _, _, k in avaliacoes_csv)
-        media = statistics.mean(k for _, _, k in avaliacoes_csv)
-        desvio = statistics.stdev([k for _, _, k in avaliacoes_csv]) if len(avaliacoes_csv) > 1 else 0.0
+        melhor = min(k for _, _, k, _ in avaliacoes_csv)
+        media = statistics.mean(k for _, _, k, _ in avaliacoes_csv)
+        desvio = statistics.stdev([k for _, _, k, _ in avaliacoes_csv]) if len(avaliacoes_csv) > 1 else 0.0
     else:
         melhor = media = desvio = 0
 
     salvar_resultados(
         grafo_nome,
         avaliacoes_csv,
-        [k for _, _, k in avaliacoes_csv],
+        [k for _, _, k, _ in avaliacoes_csv],
         melhor,
         media,
         desvio,
         otima,
-        resultados_dir
+        resultados_dir,
+        tempos
     )
 
     print(f"[✓] {grafo_nome}: Melhor={melhor}, Ótima={otima}, DP={desvio:.2f}, Tempo médio={statistics.mean(tempos):.2f}s")
