@@ -1,0 +1,11 @@
+execucao,conflitos,cores_usadas
+1,0,34
+2,0,33
+3,0,32
+4,0,31
+5,3,30
+
+melhor_solucao,30
+media_cores,32.00
+desvio_padrao,1.58
+solucao_otima,25
